@@ -1,7 +1,7 @@
 # Wardial
 
-![](https://github.com/mikeizbicki/wardial/workflows/task1/badge.svg)
-![](https://github.com/mikeizbicki/wardial/workflows/task2/badge.svg)
+![](https://github.com/milesba4/wardial/workflows/task1/badge.svg)
+![](https://github.com/milesba4/wardial/workflows/task2/badge.svg)
 
 
 **Learning Objectives:**
