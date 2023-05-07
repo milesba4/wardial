@@ -115,24 +115,25 @@ def netmask_to_ips(netmask):
 
     ip_str, mask_str = netmask.split('/')
     octets = ip_str.split('.')
-    ip_32bit =  int(octets[0]) << 24
+    ip_32bit = int(octets[0]) << 24
     ip_32bit += int(octets[1]) << 16
     ip_32bit += int(octets[2]) << 8
     ip_32bit += int(octets[3])
 
     mask = int(mask_str)
     mask_32bit = 0
-    for i in range(32,32-mask-1,-1):
+    for i in range(32, 32 - mask - 1, -1):
         mask_32bit += 1 << i
 
     base_ip = ip_32bit & mask_32bit
     octet0 = (base_ip >> 24) % 256
     octet1 = (base_ip >> 16) % 256
-    octet2 = (base_ip >>  8) % 256
-    octet3 = (base_ip      ) % 256
+    octet2 = (base_ip >> 8) % 256
+    octet3 = (base_ip) % 256
 
-    start_ip = str(octet0) + '.' + str(octet1) + '.' + str(octet2) + '.' + str(octet3)
-    num_ips = 2**(32-mask)
+    start_ip = str(octet0) + '.' + str(octet1) + '.' + \
+        str(octet2) + '.' + str(octet3)
+    num_ips = 2**(32 - mask)
 
     return enumerate_ips(start_ip, num_ips)
 
@@ -145,13 +146,11 @@ async def is_server_at_host(session, host, schema='http'):
     url = schema + '://' + host
     try:
         async with session.get(url, allow_redirects=False) as resp:
-            logging.info('server at '+url)
+            logging.info('server at ' + url)
             return True
-    except ( aiohttp.client_exceptions.ClientConnectorError
-           , aiohttp.client_exceptions.ServerDisconnectedError
-           , asyncio.TimeoutError
-           ) as e:
-        logging.debug('no server at '+url)
+    except (aiohttp.client_exceptions.ClientConnectorError, aiohttp.client_exceptions.ServerDisconnectedError, asyncio.TimeoutError
+            ) as e:
+        logging.debug('no server at ' + url)
         return False
 
 
@@ -185,29 +184,36 @@ async def _wardial_async(hosts, max_connections=500, timeout=10, schema='http'):
         limit=max_connections,
         limit_per_host=1,
         verify_ssl=False,
-        )
+    )
     headers = {
-        'host': 'placeholder', # some servers require a host value be set
+        'host': 'placeholder',  # some servers require a host value be set
         'user-agent': 'CMC WarDialer',
-        }
+    }
     timeout = aiohttp.ClientTimeout(
         total=None,
         sock_connect=timeout,
         sock_read=timeout
-        )
+    )
     async with aiohttp.ClientSession(
             headers=headers,
             timeout=timeout,
             connector=connector,
-            ) as session:
+    ) as session:
         # FIXME (Task 2):
         # The following code is "correct" in the sense that it gets the right results.
         # The problem is that it is not concurrent.
-        # Modify the code to use the `asyncio.gather` function to enable concurrency.
+        # Modify the code to use the `asyncio.gather` function to enable
+        # concurrency.
+        '''
         results = []
         for host in hosts:
             results.append(await is_server_at_host(session,host))
         return results
+        '''
+
+        # use list comprehesion for creating bool arr of whether there is an existing server for each host
+        # use gather on list, must use unpack operator
+        return await asyncio.gather(*[is_server_at_host(session, host) for host in hosts])
 
 
 def wardial(hosts, **kwargs):
@@ -226,14 +232,24 @@ def wardial(hosts, **kwargs):
     # You should create a new event loop,
     # and use this event loop to call the `_wardial_async` function.
     # Ensure that all of the kwargs parameters get passed to `_wardial_async`.
-    # You will have to do some post-processing of the results of this function to convert the output.
-    return []
+    # You will have to do some post-processing of the results of this function
+    # to convert the output.
+    loop = asyncio.new_event_loop()
+    booleans = loop.run_until_complete(_wardial_async(hosts))
+    # making sure result is an array of Boolean values, check value of each index and only keep the indexes where the value is True.
+    # creating list of indexes where the element at index of booleans arr is
+    # True
+    true_indexes = [i for i in range(len(booleans)) if booleans[i]]
+    # filtering hosts arr to only include hosts where server exists
+    return [hosts[index] for index in true_indexes]
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
 
     # process the cmd line args
     import argparse
-    parser = argparse.ArgumentParser(description='Scan a section of the internet for webservers')
+    parser = argparse.ArgumentParser(
+        description='Scan a section of the internet for webservers')
     parser.add_argument('netmask')
     parser.add_argument('--timeout', type=int, default=10)
     parser.add_argument('--max_connections', type=int, default=500)
@@ -252,5 +268,9 @@ if __name__=='__main__':
 
     # run the wardial
     ips = netmask_to_ips(args.netmask)
-    alive_ips = wardial(ips, timeout=args.timeout, max_connections=args.max_connections, schema=args.schema)
+    alive_ips = wardial(
+        ips,
+        timeout=args.timeout,
+        max_connections=args.max_connections,
+        schema=args.schema)
     print('total ips found =', len(alive_ips))
